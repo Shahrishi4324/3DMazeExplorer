@@ -4,6 +4,7 @@ from OpenGL.GL import *
 from OpenGL.GLU import *
 import sys
 import numpy as np
+import random
 
 # Initialize Pygame
 pygame.init()
@@ -41,9 +42,14 @@ edges = [
     (3, 7),
 ]
 
+# Items and traps
+items = []
+traps = []
+
 # Draw a cube
-def draw_cube():
-    glBegin(GL_LINES)
+def draw_cube(color=(1, 1, 1)):
+    glBegin(GL_QUADS)
+    glColor3fv(color)
     for edge in edges:
         for vertex in edge:
             glVertex3fv(vertices[vertex])
@@ -56,7 +62,7 @@ def render_maze():
         for z in range(-5, 6):
             if (x % 2 == 0 or z % 2 == 0):
                 glTranslatef(x * 2, 0, z * 2)
-                draw_cube()
+                draw_cube(color=(0.5, 0.5, 0.5))
                 glTranslatef(-x * 2, 0, -z * 2)
     glPopMatrix()
 
@@ -75,11 +81,43 @@ def check_collision(pos):
         return True
     return False
 
+# Initialize items and traps
+def initialize_items_and_traps():
+    global items, traps
+    items = [(random.randint(-5, 5) * 2, random.randint(-5, 5) * 2) for _ in range(5)]
+    traps = [(random.randint(-5, 5) * 2, random.randint(-5, 5) * 2) for _ in range(5)]
+
+# Render items
+def render_items():
+    for item in items:
+        glPushMatrix()
+        glTranslatef(item[0], 0, item[1])
+        draw_cube(color=(0, 1, 0))  # Green for items
+        glPopMatrix()
+
+# Render traps
+def render_traps():
+    for trap in traps:
+        glPushMatrix()
+        glTranslatef(trap[0], 0, trap[1])
+        draw_cube(color=(1, 0, 0))  # Red for traps
+        glPopMatrix()
+
+# HUD to display score and health
+def render_hud(score, health):
+    font = pygame.font.Font(None, 36)
+    hud = font.render(f'Score: {score}  Health: {health}', True, (255, 255, 255))
+    screen.blit(hud, (10, 10))
+    pygame.display.flip()
+
 # Main game loop
 def game_loop():
     setup_camera()
-
     pos = np.array([0.0, 1.0, -5.0])
+    score = 0
+    health = 100
+
+    initialize_items_and_traps()
 
     running = True
     while running:
@@ -104,16 +142,36 @@ def game_loop():
         if check_collision(pos):
             pos[0], pos[2] = 0, -5  # Reset to start if collision occurs
 
+        # Check for item collection
+        for item in items[:]:
+            if np.linalg.norm(np.array([item[0], pos[2]]) - np.array([pos[0], pos[2]])) < 1.5:
+                items.remove(item)
+                score += 10
+
+        # Check for traps
+        for trap in traps:
+            if np.linalg.norm(np.array([trap[0], pos[2]]) - np.array([pos[0], pos[2]])) < 1.5:
+                health -= 10
+                if health <= 0:
+                    print("Game Over!")
+                    running = False
+
         # Update camera position
         glLoadIdentity()
         gluLookAt(pos[0], pos[1], pos[2], pos[0], pos[1], pos[2] + 1, 0, 1, 0)
 
-        # Render maze
+        # Render maze, items, and traps
         render_maze()
+        render_items()
+        render_traps()
 
         # Update the display
         pygame.display.flip()
         pygame.time.wait(10)
+
+        # Render HUD
+        screen.fill((0, 0, 0))
+        render_hud(score, health)
 
     pygame.quit()
     sys.exit()
