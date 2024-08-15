@@ -42,9 +42,10 @@ edges = [
     (3, 7),
 ]
 
-# Items and traps
+# Items, traps, and enemies
 items = []
 traps = []
+enemies = []
 
 # Draw a cube
 def draw_cube(color=(1, 1, 1)):
@@ -81,11 +82,12 @@ def check_collision(pos):
         return True
     return False
 
-# Initialize items and traps
-def initialize_items_and_traps():
-    global items, traps
+# Initialize items, traps, and enemies
+def initialize_entities():
+    global items, traps, enemies
     items = [(random.randint(-5, 5) * 2, random.randint(-5, 5) * 2) for _ in range(5)]
     traps = [(random.randint(-5, 5) * 2, random.randint(-5, 5) * 2) for _ in range(5)]
+    enemies = [(random.randint(-5, 5) * 2, random.randint(-5, 5) * 2) for _ in range(3)]
 
 # Render items
 def render_items():
@@ -103,10 +105,29 @@ def render_traps():
         draw_cube(color=(1, 0, 0))  # Red for traps
         glPopMatrix()
 
-# HUD to display score and health
-def render_hud(score, health):
+# Render enemies
+def render_enemies():
+    for enemy in enemies:
+        glPushMatrix()
+        glTranslatef(enemy[0], 0, enemy[1])
+        draw_cube(color=(0, 0, 1))  # Blue for enemies
+        glPopMatrix()
+
+# Enemy AI movement
+def enemy_ai(pos):
+    for i, enemy in enumerate(enemies):
+        enemy_pos = np.array(enemy)
+        player_pos = np.array([pos[0], pos[2]])
+
+        # If player is within range, move enemy towards the player
+        if np.linalg.norm(player_pos - enemy_pos) < 6:
+            direction = (player_pos - enemy_pos) / np.linalg.norm(player_pos - enemy_pos)
+            enemies[i] = tuple(enemy_pos + direction * 0.05)
+
+# HUD to display score, health, and enemies remaining
+def render_hud(score, health, enemies_remaining):
     font = pygame.font.Font(None, 36)
-    hud = font.render(f'Score: {score}  Health: {health}', True, (255, 255, 255))
+    hud = font.render(f'Score: {score}  Health: {health}  Enemies: {enemies_remaining}', True, (255, 255, 255))
     screen.blit(hud, (10, 10))
     pygame.display.flip()
 
@@ -117,7 +138,7 @@ def game_loop():
     score = 0
     health = 100
 
-    initialize_items_and_traps()
+    initialize_entities()
 
     running = True
     while running:
@@ -156,14 +177,26 @@ def game_loop():
                     print("Game Over!")
                     running = False
 
+        # Enemy AI
+        enemy_ai(pos)
+
+        # Check for enemy collision
+        for enemy in enemies[:]:
+            if np.linalg.norm(np.array([enemy[0], pos[2]]) - np.array([pos[0], pos[2]])) < 1.5:
+                health -= 20
+                if health <= 0:
+                    print("Game Over!")
+                    running = False
+
         # Update camera position
         glLoadIdentity()
         gluLookAt(pos[0], pos[1], pos[2], pos[0], pos[1], pos[2] + 1, 0, 1, 0)
 
-        # Render maze, items, and traps
+        # Render maze, items, traps, and enemies
         render_maze()
         render_items()
         render_traps()
+        render_enemies()
 
         # Update the display
         pygame.display.flip()
@@ -171,7 +204,7 @@ def game_loop():
 
         # Render HUD
         screen.fill((0, 0, 0))
-        render_hud(score, health)
+        render_hud(score, health, len(enemies))
 
     pygame.quit()
     sys.exit()
